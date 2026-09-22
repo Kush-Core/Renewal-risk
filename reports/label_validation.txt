@@ -1,0 +1,11 @@
+official labels: 970960
+share whose current expiry falls in 2017-02: 0.0141
+share with a non-censored label of ours: 0.0190
+agreement on those: 0.8832
+effective_exp equals official current expiry: 0.9684
+
+confusion (rows = official, columns = ours):
+ours         0     1
+official            
+0         8992   354
+1         1804  7323

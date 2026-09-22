@@ -1,0 +1,7 @@
+group,decisions,observed,predicted,obs_over_exp,gap_pp,z,verdict
+auto=0|cycle=1,61591,0.3685,0.4221,0.873,5.3602,-26.9343,conservative (over-predicts churn)
+auto=0|cycle=2-6,116425,0.1859,0.2596,0.7162,7.3669,-57.3381,conservative (over-predicts churn)
+auto=0|cycle=7+,103638,0.0737,0.1399,0.5268,6.6219,-61.4485,conservative (over-predicts churn)
+auto=1|cycle=1,203410,0.0729,0.1914,0.3809,11.8512,-135.8556,conservative (over-predicts churn)
+auto=1|cycle=2-6,439047,0.0184,0.1062,0.1735,8.778,-188.7782,conservative (over-predicts churn)
+auto=1|cycle=7+,1627860,0.0129,0.0379,0.3389,2.5075,-167.4769,conservative (over-predicts churn)

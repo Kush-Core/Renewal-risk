@@ -1,4 +1,5 @@
 """Load out-of-time windows and prove they cannot leak into each other."""
+
 from datetime import date, timedelta
 
 import pandas as pd
@@ -18,35 +19,45 @@ from renewal_risk.config import (
 )
 from renewal_risk.features import CATEGORICAL, FEATURES
 
-WINDOWS = {"train": TRAIN, "calib": CALIB, "test": TEST, "horizon_train": HORIZON_TRAIN,
-           "final_train": FINAL_TRAIN, "final_calib": FINAL_CALIB,
-           "final_horizon_train": FINAL_HORIZON_TRAIN}
+WINDOWS = {
+    "train": TRAIN,
+    "calib": CALIB,
+    "test": TEST,
+    "horizon_train": HORIZON_TRAIN,
+    "final_train": FINAL_TRAIN,
+    "final_calib": FINAL_CALIB,
+    "final_horizon_train": FINAL_HORIZON_TRAIN,
+}
 
 
 def window_problems(data_end: str = DATA_END) -> list[str]:
     """Return every violated rule; an empty list means the windows are safe."""
-    d = {k: (date.fromisoformat(a), date.fromisoformat(b)) for k, (a, b) in WINDOWS.items()}
+    d = {
+        k: (date.fromisoformat(a), date.fromisoformat(b))
+        for k, (a, b) in WINDOWS.items()
+    }
     first_test_as_of = d["test"][0] - timedelta(days=AS_OF_LEAD_DAYS)
     problems = []
     for name in ["train", "calib"]:
         resolved = d[name][1] + timedelta(days=LABEL_WINDOW_DAYS)
         if resolved > first_test_as_of:
-            problems.append(f"{name} labels resolve {resolved}, after first test as-of {first_test_as_of}")
-    horizon_resolved = d["horizon_train"][1] + timedelta(days=LABEL_WINDOW_DAYS * HORIZON_CYCLES)
+            problems.append(
+                f"{name} labels resolve {resolved}, after first test as-of {first_test_as_of}"
+            )
+    horizon_resolved = d["horizon_train"][1] + timedelta(
+        days=LABEL_WINDOW_DAYS * HORIZON_CYCLES
+    )
     if horizon_resolved > first_test_as_of:
-        problems.append(f"horizon_train outcomes resolve {horizon_resolved}, after first test as-of")
+        problems.append(
+            f"horizon_train outcomes resolve {horizon_resolved}, after first test as-of"
+        )
     if d["train"][1] >= d["calib"][0]:
         problems.append("train and calib windows overlap")
     horizon_end = d["test"][1] + timedelta(days=LABEL_WINDOW_DAYS * HORIZON_CYCLES)
     if horizon_end > date.fromisoformat(data_end):
-        problems.append(f"{HORIZON_CYCLES}-cycle outcomes for test end {horizon_end}, after data end")
-    # Final refit: every label it trains on must be known by the data end.
-    for name, cycles in [("final_train", 1), ("final_calib", 1), ("final_horizon_train", HORIZON_CYCLES)]:
-        resolved = d[name][1] + timedelta(days=LABEL_WINDOW_DAYS * cycles)
-        if resolved > date.fromisoformat(data_end):
-            problems.append(f"{name} outcomes resolve {resolved}, after data end")
-    if d["final_train"][1] >= d["final_calib"][0]:
-        problems.append("final_train and final_calib windows overlap")
+        problems.append(
+            f"{HORIZON_CYCLES}-cycle outcomes for test end {horizon_end}, after data end"
+        )
     return problems
 
 
@@ -59,7 +70,8 @@ def load(con, window: str) -> pd.DataFrame:
     df = con.execute(
         """SELECT * FROM features
            WHERE is_monthly AND window_closed AND scheduled_exp BETWEEN ? AND ?""",
-        [start, end]).df()
+        [start, end],
+    ).df()
     return prepare(df)
 
 

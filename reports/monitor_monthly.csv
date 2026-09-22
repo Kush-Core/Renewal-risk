@@ -1,0 +1,4 @@
+month,decisions,observed,expected,obs_over_exp,outside_band
+2016-07,786673,0.0412,0.0864,0.4775,True
+2016-08,835073,0.0356,0.0846,0.4216,True
+2016-09,930225,0.0361,0.0854,0.423,True

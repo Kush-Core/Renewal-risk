@@ -1,0 +1,7 @@
+feature,psi_train_vs_test,over_limit
+cancels_in_spell_to_asof,0.0,False
+tenure_days,1.0709,True
+relationship_no,0.0,False
+is_auto_renew,0.0046,False
+payment_method_id,0.2287,False
+amount_paid,0.2943,True

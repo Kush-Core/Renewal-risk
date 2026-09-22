@@ -2,3 +2,5 @@ data/
 *.duckdb
 reports/synthetic/
 .venv/
+__pycache__/
+*.pyc

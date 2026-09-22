@@ -7,6 +7,9 @@ from renewal_risk.config import (
     AS_OF_LEAD_DAYS,
     CALIB,
     DATA_END,
+    FINAL_CALIB,
+    FINAL_HORIZON_TRAIN,
+    FINAL_TRAIN,
     HORIZON_CYCLES,
     HORIZON_TRAIN,
     LABEL_WINDOW_DAYS,
@@ -15,7 +18,9 @@ from renewal_risk.config import (
 )
 from renewal_risk.features import CATEGORICAL, FEATURES
 
-WINDOWS = {"train": TRAIN, "calib": CALIB, "test": TEST, "horizon_train": HORIZON_TRAIN}
+WINDOWS = {"train": TRAIN, "calib": CALIB, "test": TEST, "horizon_train": HORIZON_TRAIN,
+           "final_train": FINAL_TRAIN, "final_calib": FINAL_CALIB,
+           "final_horizon_train": FINAL_HORIZON_TRAIN}
 
 
 def window_problems(data_end: str = DATA_END) -> list[str]:
@@ -35,6 +40,13 @@ def window_problems(data_end: str = DATA_END) -> list[str]:
     horizon_end = d["test"][1] + timedelta(days=LABEL_WINDOW_DAYS * HORIZON_CYCLES)
     if horizon_end > date.fromisoformat(data_end):
         problems.append(f"{HORIZON_CYCLES}-cycle outcomes for test end {horizon_end}, after data end")
+    # Final refit: every label it trains on must be known by the data end.
+    for name, cycles in [("final_train", 1), ("final_calib", 1), ("final_horizon_train", HORIZON_CYCLES)]:
+        resolved = d[name][1] + timedelta(days=LABEL_WINDOW_DAYS * cycles)
+        if resolved > date.fromisoformat(data_end):
+            problems.append(f"{name} outcomes resolve {resolved}, after data end")
+    if d["final_train"][1] >= d["final_calib"][0]:
+        problems.append("final_train and final_calib windows overlap")
     return problems
 
 

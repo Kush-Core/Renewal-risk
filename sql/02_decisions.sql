@@ -1,4 +1,3 @@
--- Module 2: one row per renewal decision, with the 30-day churn label.
 -- A spell starts at a paid row; cancel rows join the spell they follow.
 -- On the same date, cancels sort before payments (cancel old plan, then buy new).
 

@@ -1,4 +1,4 @@
-"""Module 1: load raw CSVs into DuckDB with explicit types."""
+"""Load raw CSVs into DuckDB with explicit types."""
 from renewal_risk.config import RAW_DIR
 from renewal_risk.db import connect
 

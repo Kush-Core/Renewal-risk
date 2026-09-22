@@ -1,4 +1,4 @@
-"""Module 1: profile the raw data before deciding any cleaning rule."""
+"""Profile the raw data before deciding any cleaning rule."""
 from renewal_risk.config import REPORTS_DIR
 from renewal_risk.db import connect
 

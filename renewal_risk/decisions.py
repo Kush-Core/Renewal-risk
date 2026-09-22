@@ -1,4 +1,4 @@
-"""Module 2: build spells and decisions, then summarise them."""
+"""Build spells and decisions, then summarise them."""
 from renewal_risk.db import connect, run_sql_file
 
 SUMMARY = """

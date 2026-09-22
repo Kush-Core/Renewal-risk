@@ -1,4 +1,4 @@
-"""Module 2: the label logic, checked against the organisers' worked examples."""
+"""The label logic, checked against the organisers' worked examples."""
 from datetime import date
 
 import duckdb

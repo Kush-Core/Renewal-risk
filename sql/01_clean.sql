@@ -1,5 +1,3 @@
--- Module 1 cleaning rules. Record each rule and its row count in DECISIONS.md.
-
 -- Rule 1: drop exact duplicate rows (the same row can appear twice, or in both files).
 -- Rule 2: drop paid rows whose membership expires before the transaction date.
 CREATE OR REPLACE TABLE txn AS

@@ -1,4 +1,4 @@
-"""Module 1: apply the cleaning rules and print the counts DECISIONS.md needs."""
+"""Apply the cleaning rules and print the counts DECISIONS.md needs."""
 
 from renewal_risk.db import connect, run_sql_file
 

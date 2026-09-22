@@ -1,4 +1,4 @@
-"""Module 2: compare our labels with the official train_v2 labels.
+"""Compare our labels with the official train_v2 labels.
 
 Official scope (competition data description): a user is labelled for a month if the
 expiry on their last transaction up to the month's last day falls inside that month.

@@ -1,6 +1,6 @@
 """Write a small synthetic dataset with the KKBox schema to data/synthetic/.
 
-Purpose: run every module end to end in minutes before touching the real data.
+Purpose: run every step end to end in minutes before touching the real data.
 The churn process is known, so the pipeline has signal to find. It is NOT a
 substitute for the real data: never report numbers from it.
 """

@@ -1,4 +1,4 @@
-"""Apply the cleaning rules and print the counts DECISIONS.md needs."""
+"""Apply the cleaning rules and report how many rows they remove."""
 
 from renewal_risk.db import connect, run_sql_file
 

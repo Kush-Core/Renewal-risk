@@ -1,7 +1,7 @@
 [project]
 name = "renewal-risk"
 version = "0.1.0"
-description = "Add your description here"
+description = "Renewal-decision churn risk on the KKBox subscription log: point-in-time features, calibrated hazard models, six-cycle survival"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

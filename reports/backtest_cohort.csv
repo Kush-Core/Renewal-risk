@@ -1,8 +1,8 @@
 group,decisions,observed,predicted,obs_over_exp,gap_pp,z,verdict
-2015Q1,1167841,0.0237,0.0554,0.4276,3.1696,-149.7641,conservative (over-predicts churn)
+2015Q1,1167841,0.0237,0.0554,0.4276,3.1696,-149.7655,conservative (over-predicts churn)
 2015Q2,105078,0.0865,0.0906,0.9544,0.4131,-4.665,within tolerance
 2015Q3,265962,0.0257,0.0435,0.5916,1.7766,-44.9172,conservative (over-predicts churn)
 2015Q4,319035,0.0232,0.0432,0.5363,2.005,-55.6801,conservative (over-predicts churn)
 2016Q1,350333,0.0293,0.0605,0.4851,3.1152,-77.341,conservative (over-predicts churn)
 2016Q2,215219,0.0883,0.1257,0.7025,3.7393,-52.3309,conservative (over-predicts churn)
-2016Q3,128503,0.1211,0.271,0.447,14.9875,-120.8743,conservative (over-predicts churn)
+2016Q3,128503,0.1211,0.271,0.447,14.9879,-120.877,conservative (over-predicts churn)

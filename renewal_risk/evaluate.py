@@ -32,16 +32,29 @@ def metrics(y: np.ndarray, p: np.ndarray) -> dict:
 
 
 def brier_gain_ci(df: pd.DataFrame, p_model: np.ndarray, p_base: np.ndarray,
-                  reps: int = 1000, seed: int = 0) -> tuple[float, float, float]:
-    """Brier(baseline) - Brier(model), with a 95% CI from resampling customers, not rows."""
+                  reps: int = 1000, seed: int = 0, cells: int = 16_000_000
+                  ) -> tuple[float, float, float]:
+    """Brier(baseline) - Brier(model), with a 95% CI from resampling customers, not rows.
+
+    The resample is drawn in batches of rows. One (reps, customers) array would be
+    8 GB on the test window; numpy fills a 2-D draw in C order, so batching consumes
+    the same stream in the same order and returns the same numbers.
+    """
     y = df["churn"].to_numpy()
-    per_user = (pd.DataFrame({"msno": df["msno"].to_numpy(),
-                              "d": (p_base - y) ** 2 - (p_model - y) ** 2, "n": 1})
-                .groupby("msno")[["d", "n"]].sum().to_numpy())
+    # groupby on a million 44-character hashes is slow; factorize(sort=True) gives
+    # the same per-customer order as groupby("msno") and bincount does the sums.
+    codes, users = pd.factorize(df["msno"].to_numpy(), sort=True)
+    d = (p_base - y) ** 2 - (p_model - y) ** 2
+    sum_d = np.bincount(codes, weights=d, minlength=len(users))
+    n_per = np.bincount(codes, minlength=len(users)).astype(float)
     rng = np.random.default_rng(seed)
-    idx = rng.integers(0, len(per_user), size=(reps, len(per_user)))
-    boot = per_user[idx, 0].sum(axis=1) / per_user[idx, 1].sum(axis=1)
-    return per_user[:, 0].sum() / per_user[:, 1].sum(), *np.percentile(boot, [2.5, 97.5])
+    batch = max(1, min(reps, cells // max(1, len(users))))
+    boot = np.empty(reps)
+    for lo in range(0, reps, batch):
+        k = min(batch, reps - lo)
+        idx = rng.integers(0, len(users), size=(k, len(users)))
+        boot[lo:lo + k] = sum_d[idx].sum(axis=1) / n_per[idx].sum(axis=1)
+    return sum_d.sum() / n_per.sum(), *np.percentile(boot, [2.5, 97.5])
 
 
 def predictions(con) -> tuple[pd.DataFrame, dict[str, np.ndarray]]:
@@ -87,7 +100,7 @@ def main() -> None:
     fig.tight_layout()
     fig.savefig(REPORTS_DIR / "calibration_test.png", dpi=150)
 
-    production = "logistic+isotonic"   # fixed in Module 6, never chosen from this table
+    production = "logistic+isotonic"   # fixed in advance, never chosen from this table
     seg = baseline.backtest(test, preds[production], baseline.segment(test))
     seg.to_csv(REPORTS_DIR / "backtest_segment_model.csv")
     print(f"\n{production} by segment:\n{seg.to_string()}")

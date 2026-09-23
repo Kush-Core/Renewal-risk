@@ -15,12 +15,16 @@ from renewal_risk.split import load
 
 
 def logistic(numeric=NUMERIC, categorical=CATEGORICAL) -> Pipeline:
+    # Sparse design matrix: the one-hot block lands at exactly the 0.3 density that
+    # ColumnTransformer would densify by default, and dense is 640 bytes a row.
+    # final_train is 13.8M rows, so dense means 8.8 GB and an hour of swapping;
+    # sparse is 4 GB and stays in memory. Same model either way.
     pre = ColumnTransformer([
         ("num", make_pipeline(SimpleImputer(strategy="median", add_indicator=True),
                               StandardScaler()), numeric),
         ("cat", OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=50,
-                              sparse_output=False), categorical),
-    ])
+                              sparse_output=True), categorical),
+    ], sparse_threshold=1.0)
     # No class_weight: re-weighting classes distorts the probabilities finance will sum.
     return Pipeline([("pre", pre), ("clf", LogisticRegression(C=1.0, max_iter=2000))])
 

@@ -10,7 +10,7 @@ from renewal_risk.config import FINAL_CALIB, FINAL_TRAIN, HORIZON_CYCLES, SCORE_
 from renewal_risk.db import connect
 from renewal_risk.features import CATEGORICAL, FEATURES, NUMERIC
 from renewal_risk.model import logistic
-from renewal_risk.split import load, prepare
+from renewal_risk.split import LOAD_COLUMNS, load, prepare
 
 MODEL_VERSION = f"logistic-{FINAL_TRAIN[1]}_iso-{FINAL_CALIB[1]}_landmark-h{HORIZON_CYCLES}"
 
@@ -29,10 +29,11 @@ CREATE TABLE IF NOT EXISTS churn_scores (
 )"""
 
 # The open book: each customer's latest monthly decision whose outcome is not yet known.
-OPEN_BOOK = """
-SELECT * FROM features
+OPEN_BOOK = f"""
+SELECT {", ".join(LOAD_COLUMNS)} FROM features
 WHERE is_monthly AND NOT window_closed
-QUALIFY row_number() OVER (PARTITION BY msno ORDER BY spell_no DESC) = 1"""
+QUALIFY row_number() OVER (PARTITION BY msno ORDER BY spell_no DESC) = 1
+ORDER BY msno"""
 
 
 def main() -> None:
@@ -50,20 +51,19 @@ def main() -> None:
     book = prepare(con.sql(OPEN_BOOK).df())
     p = np.clip(iso.predict(near.predict_proba(book[FEATURES])[:, 1]), *SCORE_CLIP)
     # Survival starts from the published next-renewal score, so the two can never disagree;
-    # later cycles use the landmark model (the combination back-tested in Module 8).
+    # later cycles use the landmark model (the combination back-tested in horizon.py).
     surv, s3 = 1 - p, None
     for j in range(1, HORIZON_CYCLES):
         surv = surv * (1 - long.predict_proba(horizon.with_offset(book, j)[FEATURES + ["offset"]])[:, 1])
         if j == 2:
             s3 = surv.copy()
     parts, _ = explain.contributions(near, book[FEATURES], train[FEATURES])
-    reasons = parts.apply(
-        lambda r: "; ".join(explain.PLAIN[f] for f in r.nlargest(3).index if r[f] > 0), axis=1)
+    reasons = explain.top_reasons(parts)
 
     scores = pd.DataFrame({
         "msno": book["msno"], "as_of": book["as_of"], "scheduled_exp": book["scheduled_exp"],
         "p_churn_next_renewal": p, "survival_3_cycles": s3, "survival_6_cycles": surv,
-        "top_reasons": reasons.to_numpy(), "model_version": MODEL_VERSION,
+        "top_reasons": reasons, "model_version": MODEL_VERSION,
         "scored_at": datetime.now(UTC).replace(tzinfo=None)})
 
     # Contract checks: fail loudly before anything reaches the warehouse.

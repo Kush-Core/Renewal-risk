@@ -57,17 +57,67 @@ def source_feature(transformed_name: str) -> str:
     return name
 
 
-def contributions(model, X: pd.DataFrame, X_ref: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
-    """Contribution of each feature (or group) to the log-odds, relative to the reference mean."""
-    pre, clf = model.named_steps["pre"], model.named_steps["clf"]
-    Z, Z_ref = pre.transform(X), pre.transform(X_ref)
-    coef = clf.coef_[0]
-    parts = (Z - Z_ref.mean(axis=0)) * coef
-    base = clf.intercept_[0] + Z_ref.mean(axis=0) @ coef
+CHUNK = 500_000          # rows transformed at once; bounds the dense matrix below
+
+
+def _dense(Z) -> np.ndarray:
+    return Z.toarray() if hasattr(Z, "toarray") else Z
+
+
+def _group_matrix(pre) -> tuple[list[str], np.ndarray]:
+    """Indicator matrix mapping each transformed column to its feature or group."""
     group_of = {c: g for g, cols in GROUPS.items() for c in cols}
     names = [group_of.get(f, f) for f in map(source_feature, pre.get_feature_names_out())]
-    by_feature = pd.DataFrame(parts, columns=names).T.groupby(level=0).sum().T
-    return by_feature, np.full(len(X), base)
+    groups = sorted(set(names))                       # groupby(level=0) sorts the names
+    G = np.zeros((len(names), len(groups)))
+    G[np.arange(len(names)), [groups.index(n) for n in names]] = 1.0
+    return groups, G
+
+
+def _transformed_mean(pre, X: pd.DataFrame, chunk: int) -> np.ndarray:
+    """Column means of the transformed reference, without holding it all at once."""
+    total = np.zeros(len(pre.get_feature_names_out()))
+    for lo in range(0, len(X), chunk):
+        total += _dense(pre.transform(X.iloc[lo:lo + chunk])).sum(axis=0)
+    return total / len(X)
+
+
+def contributions(model, X: pd.DataFrame, X_ref: pd.DataFrame,
+                  chunk: int = CHUNK) -> tuple[pd.DataFrame, np.ndarray]:
+    """Contribution of each feature (or group) to the log-odds, relative to the reference mean.
+
+    Folding the coefficients into the grouping matrix turns the whole thing into one
+    matrix product per chunk. The frames here reach millions of rows, where building
+    an (N x 88) frame and transposing it to group the columns does not fit in memory.
+    """
+    pre, clf = model.named_steps["pre"], model.named_steps["clf"]
+    coef = clf.coef_[0]
+    groups, G = _group_matrix(pre)
+    ref_mean = _transformed_mean(pre, X_ref, chunk)
+    W = G * coef[:, None]
+    offset = (ref_mean * coef) @ G
+    out = np.empty((len(X), len(groups)))
+    for lo in range(0, len(X), chunk):
+        out[lo:lo + chunk] = _dense(pre.transform(X.iloc[lo:lo + chunk])) @ W - offset
+    base = clf.intercept_[0] + ref_mean @ coef
+    return pd.DataFrame(out, columns=groups), np.full(len(X), base)
+
+
+def top_reasons(parts: pd.DataFrame, k: int = 3) -> np.ndarray:
+    """The k largest positive contributions per row, in words.
+
+    Same answer as nlargest(k) applied row by row, without a Python call per row:
+    the test window is 2.5M rows and the open book scored next to it 1.0M.
+    """
+    v = parts.to_numpy()
+    words = np.array([PLAIN[c] for c in parts.columns], dtype=object)
+    order = np.argsort(-v, axis=1, kind="stable")[:, :k]
+    picked, keep = words[order], np.take_along_axis(v, order, axis=1) > 0
+    out = np.where(keep[:, 0], picked[:, 0], "").astype(object)
+    for j in range(1, order.shape[1]):
+        sep = np.where(out != "", "; ", "").astype(object)
+        out = np.where(keep[:, j], out + sep + picked[:, j], out)
+    return out
 
 
 def main() -> None:
@@ -84,12 +134,13 @@ def main() -> None:
     print(drivers.head(8).round(6).to_string(index=False))
 
     # 2. Local: top three reasons per account, and proof that the parts sum to the score.
-    parts, base = contributions(model, test[FEATURES], train[FEATURES])
-    logit = np.log(model.predict_proba(test[FEATURES])[:, 1] / model.predict_proba(test[FEATURES])[:, 0])
+    X = test[FEATURES]                      # materialise the column subset once
+    p_raw = model.predict_proba(X)[:, 1]    # and score it once, not three times
+    parts, base = contributions(model, X, train[FEATURES])
+    logit = np.log(p_raw / (1 - p_raw))
     assert np.allclose(base + parts.sum(axis=1), logit), "contributions do not add up to the score"
-    top = parts.apply(lambda r: "; ".join(PLAIN[f] for f in r.nlargest(3).index if r[f] > 0), axis=1)
     out = test[["msno", "as_of"]].assign(
-        p_churn=iso.predict(model.predict_proba(test[FEATURES])[:, 1]), reasons=top.to_numpy())
+        p_churn=iso.predict(p_raw), reasons=top_reasons(parts))
     out.sort_values("p_churn", ascending=False).head(10).to_csv(REPORTS_DIR / "reason_codes_top10.csv", index=False)
     print("\nhighest-risk test accounts:")
     print(out.sort_values("p_churn", ascending=False).head(5).round(3).to_string(index=False))

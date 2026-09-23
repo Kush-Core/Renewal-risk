@@ -13,7 +13,7 @@ from renewal_risk.config import HORIZON_CYCLES, MODELS_DIR, REPORTS_DIR
 from renewal_risk.db import connect
 from renewal_risk.features import CATEGORICAL, FEATURES, NUMERIC
 from renewal_risk.model import logistic
-from renewal_risk.split import load
+from renewal_risk.split import LOAD_COLUMNS, checked_window, load, prepare
 
 # Follow-up decisions of the same relationship, up to HORIZON_CYCLES cycles after the landmark.
 FOLLOW_UP = f"""
@@ -22,13 +22,36 @@ FROM idx i
 JOIN decisions d
   ON d.msno = i.msno AND d.relationship_no = i.relationship_no
  AND d.cycle BETWEEN i.cycle AND i.cycle + {HORIZON_CYCLES - 1}
-WHERE d.churn IS NOT NULL"""
+WHERE d.churn IS NOT NULL
+-- A parallel hash join emits rows in no fixed order, and these rows are the
+-- training set for the landmark model. Leaving it to the join moved the
+-- published survival curve by up to 0.35pp between identical runs.
+ORDER BY i.msno, "offset\""""
+
+
+# One row per customer, collapsed in SQL. arg_min(col, (scheduled_exp, spell_no))
+# reproduces groupby.first() exactly, including its habit of skipping nulls column
+# by column. The spell_no tiebreak settles customers whose first two decisions
+# expire on the same day (0.19% of the test window), so the landmark is the same
+# row on every run.
+LANDMARKS = f"""
+SELECT msno, {", ".join(f"arg_min({c}, (scheduled_exp, spell_no)) AS {c}"
+                        for c in LOAD_COLUMNS if c != "msno")}
+FROM features
+WHERE is_monthly AND window_closed AND scheduled_exp BETWEEN ? AND ?
+GROUP BY msno
+ORDER BY msno"""
 
 
 def landmarks(con, window: str) -> pd.DataFrame:
-    """One landmark per customer: their first decision in the window."""
-    df = load(con, window)
-    return df.sort_values("scheduled_exp").groupby("msno", as_index=False).first()
+    """One landmark per customer: their first decision in the window.
+
+    Collapsed by DuckDB rather than pandas: final_horizon_train is 11M rows that
+    reduce to 1.5M, and sorting then grouping that many 44-character hashes in
+    pandas was the single slowest step in the pipeline.
+    """
+    start, end = checked_window(con, window)
+    return prepare(con.execute(LANDMARKS, [start, end]).df(), copy=False)
 
 
 def follow_up(con, index: pd.DataFrame) -> pd.DataFrame:
@@ -83,7 +106,7 @@ def main() -> None:
         j = h - 1
         hazard = model.predict_proba(with_offset(index, j)[FEATURES + ["offset"]])[:, 1]
         s["landmark_model"] *= 1 - hazard
-        # What Module 10 publishes: the near-term score for the next renewal, landmark after.
+        # What score.py publishes: the near-term score for the next renewal, landmark after.
         s["published_hybrid"] *= 1 - (p_next if j == 0 else hazard)
         rolled = roll_forward(index, j)
         s["near_term_model_rolled"] *= 1 - near_iso.predict(near.predict_proba(rolled[FEATURES])[:, 1])

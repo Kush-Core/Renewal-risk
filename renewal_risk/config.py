@@ -26,3 +26,23 @@ FINAL_TRAIN = ("2015-07-01", "2016-12-31")
 FINAL_CALIB = ("2017-01-01", "2017-02-28")
 FINAL_HORIZON_TRAIN = ("2015-07-01", "2016-09-30")   # 6-cycle outcomes mostly observable
 SCORE_CLIP = (0.001, 0.999)                           # never publish a certainty
+
+# --- DuckDB limits -----------------------------------------------------------
+# DuckDB's default memory limit is 80% of RAM. This pipeline holds large pandas
+# frames and dense design matrices in the same process at the same time, so that
+# default leaves nothing for Python and the run ends up in swap. Cap DuckDB and
+# let it spill to temp_directory instead: spilling is far cheaper than swapping.
+def _physical_memory_bytes() -> int:
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (AttributeError, ValueError, OSError):
+        return 8 * 2**30
+
+
+MEMORY_FRACTION = float(os.environ.get("DUCKDB_MEMORY_FRACTION", "0.40"))
+MEMORY_LIMIT = os.environ.get(
+    "DUCKDB_MEMORY_LIMIT",
+    f"{max(1, int(MEMORY_FRACTION * _physical_memory_bytes() / 2**30))}GB",
+)
+THREADS = os.environ.get("DUCKDB_THREADS")           # None = DuckDB's default (all cores)
+TEMP_DIR = Path(os.environ.get("DUCKDB_TEMP_DIR", "data/duckdb_tmp"))

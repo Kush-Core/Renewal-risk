@@ -37,4 +37,10 @@ SELECT b.*,
        CASE WHEN m.registration_init_time <= b.as_of
             THEN b.as_of - m.registration_init_time END AS registration_days
 FROM before_start b
-LEFT JOIN members m USING (msno);
+LEFT JOIN members m USING (msno)
+-- The ASOF joins above do not preserve row order, so without this the table is
+-- laid out differently on every build and anything that picks rows by position
+-- (sampling, train/validation splits) silently changes. (msno, spell_no) is
+-- unique, so this is a total order; leading with scheduled_exp also lets the
+-- window filters in split.load prune row groups.
+ORDER BY b.scheduled_exp, b.msno, b.spell_no;

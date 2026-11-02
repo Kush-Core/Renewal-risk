@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/header-dark.svg">
+  <img width="100%" alt="Renewal Risk — Churn risk per renewal decision from a 23M-row subscription payment log" src="assets/header-light.svg">
+</picture>
+
 # Renewal risk
 
 Churn risk for a subscription business, scored one renewal at a time.
